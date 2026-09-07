@@ -41,7 +41,9 @@
 #   qemu              交互验证（串口直连 ttyS0，登录 root/root，rc-status /
 #                     nft list ruleset）。qemu 无 KVM 要求、-snapshot 不落盘
 #   cloud-hypervisor  与生产同参数的启动验证（--kernel + --disk readonly=on
-#                     + ro cmdline）。--assert 模式为非交互（重定向下
+#                     + ro cmdline + 内存 256M）。CH 路径无 tap 网卡（建 tap
+#                     需 root，冒烟保持免 sudo）——virtio-net 回归由 qemu 路径
+#                     的 user-mode 网卡覆盖。--assert 模式为非交互（重定向下
 #                     --serial tty 不可用，改 --serial file 落日志，
 #                     不尝试 tee/script 保 TTY）；交互测试归 qemu
 #

@@ -161,9 +161,11 @@ in
 
     mem = lib.mkOption {
       type = lib.types.ints.positive;
-      # 2026-09 实测：tailscaled+cloudflared+tailscale 隧道服务 ~120MB、
-      # 系统 ~50MB，工作集 ~170MB 再加 page cache，256M 偏紧；默认 512M 留余量。
-      default = 512;
+      # 2026-09 实测：全量服务（tailscaled+cloudflared+隧道）工作集 ~170MB
+      # 加 page cache。生产决策沿用 256M（余量 ~80M，balloon 默认关闭避免
+      # 进一步挤压；曾提默认 512M 后按真实验收回落）。宿主内存吃紧时优先
+      # 走宿主侧回收/降 balloon 路径，而非默认涨 guest 上限。
+      default = 256;
       description = "guest 内存上限（MB）";
     };
 

@@ -59,6 +59,13 @@ check_rootfs() {
     # inittab 依赖 busybox 的 /sbin/getty（util-linux 已删），ntpd 依赖
     # acct-user/ntp。启动日志断言查不出「到不了 login」这类失败
     _check_bin getty /sbin/getty
+    if grep -qE '^S[0-9]+::respawn:/sbin/getty' "${TARGET_ROOTFS}/etc/inittab" 2>/dev/null; then
+        echo "  ✓ inittab 串口 getty 激活"
+        _OK=$((_OK + 1))
+    else
+        echo "  ✗ inittab 无激活串口 getty 行!" >&2
+        _FAIL=$((_FAIL + 1))
+    fi
     # /var/lock 烙链接（bootmisc 运行期 ln 在 ro 上必报 EROFS，构建检查
     # 全绿也拦不住——只能烙期保证）
     if [ -L "${TARGET_ROOTFS}/var/lock" ] && \
@@ -107,6 +114,7 @@ check_rootfs() {
     echo "[check] openrc 系统服务:"
     _check_openrc bootmisc boot
     _check_openrc syslog default
+    _check_openrc loopback boot
 
     echo "[check] openrc 应用服务:"
     _check_openrc sshd default
@@ -132,5 +140,7 @@ check_rootfs() {
     # ---------- 结果 ----------
     _TOTAL=$((_OK + _FAIL))
     echo "[check] === $_OK/$_TOTAL 通过 ==="
-    [ "$_FAIL" -eq 0 ] || echo "[check] 警告: $_FAIL 项检查未通过"
+    # 与 alpine 链对齐：失败即中止构建（2026-09 前这里只打警告恒返回 0，
+    # init/ld-musl/getty 等盲区检查形同虚设——check 全绿拦不住回归）
+    [ "$_FAIL" -eq 0 ] || { echo "[check] 构建不完整，中止"; exit 1; }
 }

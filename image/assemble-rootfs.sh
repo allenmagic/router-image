@@ -20,8 +20,11 @@ cd "$WORK"
 mkdir -p rootfs
 tar xf "$ROOTFS_TARBALL" -C rootfs --numeric-owner
 
-# 启用 ttyS0 getty（setup.sh 已追加，此 sed 为幂等安全网）
-sed -i 's|^#ttyS0:|ttyS0:|' rootfs/etc/inittab
+# 启用 ttyS0 getty（setup.sh 对默认串口通常已追加；此 sed 是给
+# "出厂只有注释行"的场景兜底——仅当无任何激活串口行时才反注释，
+# 避免与 setup.sh 的追加行叠加成双 getty，2026-09 修复）
+grep -qE '^ttyS[0-9]' rootfs/etc/inittab 2>/dev/null \
+    || sed -i 's|^#ttyS0:|ttyS0:|' rootfs/etc/inittab
 
 # ============================================================
 # mkfs.ext4（512M 稀疏 → qcow2 compact 后 ≈ 实际内容大小）

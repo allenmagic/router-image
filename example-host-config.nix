@@ -4,7 +4,7 @@
 #   flake:   inputs.router-image.url = "github:allenmagic/router-image";
 #   模块:    imports = [ inputs.router-image.nixosModules.router ];
 #   启用:    services.router-vm.enable = true;
-#   （本地 checkout 测试时也可直接 import ./nixos-modules/router-vm.nix）
+#   （本地 checkout 测试时也可直接 import ./nixos-modules/router.nix）
 #
 # 本文件同时给出三个必备的宿主侧配置：
 #   1. br-wan / br-lan 网桥（tap 由模块 preStart 创建并自动挂入）
@@ -67,8 +67,8 @@
 
     cpu = 2;                       # 隔离给 VM 独占的宿主核（isolcpus）
     vcpus = 2;                     # vcpu0 绑 `cpu`，其余动态调度
-    mem = 512;                     # guest 内存上限（MB）
-    initialBalloonMem = 256;       # 初始 balloon（MB），宿主 OOM 时放气
+    mem = 256;                     # guest 内存上限（MB，默认 256）
+    initialBalloonMem = 0;         # 默认不充气（充气会从 mem 扣可用内存；宿主侧回收未实现）
 
     wanBridge = "br-wan";
     lanBridge = "br-lan";

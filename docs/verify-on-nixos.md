@@ -23,7 +23,7 @@ NixOS 宿主上的完整功能。验收标准对应 `docs/refactor-proposal.md` 
 
 - Nix 已安装
 - /dev/kvm 可读写（嵌套虚拟化需要）
-- 至少 8GB 内存（宿主 VM 4GB + router VM 512MB）
+- 至少 8GB 内存（宿主 VM 4GB + router VM 256MB）
 
 ### 构建并启动
 
@@ -110,8 +110,8 @@ systemctl start router-vm   # 自动恢复（含 router-vm-deploy 重新注入�
     os = "alpine";
     cpu = 2;               # 隔离核：按硬件调整（isolcpus）
     vcpus = 2;
-    mem = 512;
-    initialBalloonMem = 256;
+    mem = 256;             # 默认值，可省略
+    initialBalloonMem = 0; # 默认值，可省略
     wanBridge = "br-wan";
     lanBridge = "br-lan";
     vmIp = "192.168.10.1";
@@ -160,10 +160,10 @@ pgrep cloud-hypervisor || echo "CH 已退出"
 # 7. 核隔离：只绑定隔离核
 taskset -cp $(pgrep cloud-hypervisor)   # 应只显示 cpu 选项指定的核
 
-# 8. balloon：guest 初始 256M
-ssh root@192.168.10.1 'free -h'         # 初始可用内存 ≈ mem - balloon
-# 宿主 OOM 时收缩由 deflate_on_oom 处理（真实 OOM 场景难以人工构造，
-# 可在宿主上制造内存压力观察 free -h 上升）
+# 8. balloon：默认关闭（initialBalloonMem=0，启动不传 --balloon）
+ssh root@192.168.10.1 'free -h'         # 默认配置下可用内存 ≈ mem（256M）
+# 若宿主显式开启 balloon：初始可用 = mem - balloon。deflate_on_oom 在
+# guest 内存压力时放气（宿主侧「OOM 时充气回收」方向未实现）
 
 # 9. smoke-test：两条路径（见 docs/quick-start-arch-linux.md）
 bash test/smoke-test.sh alpine --verify-only

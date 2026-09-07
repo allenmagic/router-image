@@ -15,7 +15,7 @@ NixOS 宿主
 │   ├── router-vm.service        系统单元直接 ExecStart cloud-hypervisor
 │   │   ├── preStart             rootfs 只读副本（内容哈希路径）+ tap 创建
 │   │   ├── --disk readonly=on   guest rootfs 只读挂载
-│   │   ├── --balloon            宿主 OOM 自动放气（deflate_on_oom）
+│   │   ├── --balloon            可选（默认关）；deflate_on_oom 在 guest 内存压力时放气
 │   │   ├── --api-socket         优雅关机（ExecStop=ch-remote shutdown-vmm）
 │   │   └── --serial file        串口落盘 /run/router-vm/console.log
 │   ├── router-vm-deploy.service 每次 VM 启动后：sops 密钥 scp 注入 guest /run
@@ -59,8 +59,8 @@ services.router-vm = {
   os = "alpine";           # 客户机发行版：alpine（默认）/ gentoo（均为 musl+OpenRC）
   cpu = 0;                 # isolcpus 独占核（默认 0；vcpu0 pin 到此核）
   vcpus = 2;               # vCPU 总数（默认 2：vcpu0 独占 + 其余动态调度）
-  mem = 512;               # guest 内存上限 MB（默认 256）
-  initialBalloonMem = 256; # 初始 balloon 充气 MB，128M 对齐（默认 0=不启用；注意会从 mem 里扣）
+  mem = 256;               # guest 内存上限 MB（默认 256）
+  initialBalloonMem = 0;   # 初始 balloon 充气 MB（默认 0=不启用；注意会从 mem 里扣）
 
   wanBridge = "br-wan";    # WAN 侧宿主桥（默认 br-wan）
   lanBridge = "br-lan";    # LAN 侧宿主桥（默认 br-lan）
@@ -102,18 +102,18 @@ release 上传（tag `router-vm-YYYYMMDD`，资产 vmlinuz-router +
 ```bash
 # 冒烟测试：两条路径（详见 test/smoke-test.sh 头部说明）
 bash test/smoke-test.sh alpine                                   # qemu 交互（串口直连；退出 Ctrl-A X）
-bash test/smoke-test.sh alpine --backend cloud-hypervisor --assert  # CH 非交互断言（与生产同参数）
+bash test/smoke-test.sh alpine --backend cloud-hypervisor --assert  # CH 非交互断言
 bash test/smoke-test.sh alpine --verify-only                     # 只下载+校验
 # 本地刚构建的内核直通（跳过 release 内核下载校验；见 kernel/README.md）
 bash test/smoke-test.sh alpine --local-kernel kernel/out/vmlinuz-router --assert
 # CH 交互模式的退出（另开终端；guest 内 poweroff/halt 在 CH 下退不出 VMM）：
 #   ch-remote --api-socket /tmp/router-vm-smoke.sock shutdown-vmm
-
-# 真实网络环境测试（tap + 桥 + 上游网卡，需要 root）
-sudo test/cloud-hypervisor-env.sh --uplink <网卡>
 ```
 
-NixOS 宿主验收：`docs/verify-on-nixos.md`。
+冒烟断言覆盖启动到 login 的日志断言（cmdline/ro 根盘/内存与生产一致；
+CH 路径无 tap 网卡——建 tap 需 root，virtio-net 回归由 qemu 路径的
+user-mode 网卡覆盖）。真实网络环境（tap + 桥 + 上游）验收走
+`docs/verify-on-nixos.md` 的 NixOS 宿主流程。
 
 ## 关键设计
 

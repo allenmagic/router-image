@@ -137,9 +137,14 @@ if ! grep -q "127.0.1.1[[:space:]]*${HOSTNAME_VAL}" /etc/hosts 2>/dev/null; then
     printf '127.0.1.1\t%s\n' "${HOSTNAME_VAL}" >> /etc/hosts
 fi
 
-# 确保串口控制台 + 禁用虚拟控制台（无 VT 内核）
-if ! grep -q "${SERIAL_DEV}" /etc/inittab 2>/dev/null; then
-    echo "${SERIAL_DEV}::respawn:/sbin/agetty -L ${SERIAL_BAUD} ${SERIAL_DEV} vt100" >> /etc/inittab
+# 串口 getty：默认 ttyS0 由 image/assemble-rootfs.sh 的共享 sed 反注释
+# baselayout 出厂注释行激活；此处兜底非默认串口（如 R3S 的 ttyS2）。
+# 守卫只看激活行（^SERIAL_DEV:）——出厂注释行 #ttyS0: 不再误命中导致
+# 不追加（2026-09 修复，曾因此默认场景没人激活）。二进制用 /sbin/getty：
+# 镜像无 agetty（2026-09 实测 busybox 链接名是 getty，旧行的 agetty
+# 即使执行也 cannot execute）
+if ! grep -qE "^${SERIAL_DEV}:" /etc/inittab 2>/dev/null; then
+    echo "${SERIAL_DEV}::respawn:/sbin/getty -L ${SERIAL_BAUD} ${SERIAL_DEV} vt100" >> /etc/inittab
 fi
 # 注释掉 tty1-tty6（Alpine busybox init 用设备名作 id）
 sed -i 's/^tty[1-6]:/#&/' /etc/inittab 2>/dev/null || true
