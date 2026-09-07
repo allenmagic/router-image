@@ -74,14 +74,15 @@ let
   # 不能依赖 known_hosts；root/root 密码通道只在 LAN 侧（br-lan）可达
   sshOpts = "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR";
 
-  # deploy 脚本（systemd 服务与手工命令共用）：
+  # 单次注入（部署守护与手工 router-vm-deploy 命令共用的函数体）：
   #   等待 VM 上线 → 从 /run/secrets 组装 env → scp 上传 → 远程执行 install.sh
   # 手工部署可用 ROUTER_VM_ENV_FILE 指向传统 env 文件（见 env.example），
   # 覆盖 sops 密钥源（调试/迁移场景）。
-  deployScript = ''
+  # 失败以 return 1 结束（消费方各自包成函数调用；不能用 exit——守护循环
+  # 的消费方会把整个循环脚本炸掉）
+  injectOnce = ''
     PATH=${lib.makeBinPath [ pkgs.coreutils pkgs.openssh pkgs.sshpass pkgs.iputils ]}:$PATH
     export PATH
-    set -eu
 
     VM_IP="${cfg.vmIp}"
     DEPLOY_PKG="/etc/router-vm/deploy.tar.gz"
@@ -90,7 +91,6 @@ let
 
     # 组装 env 文件（密钥只在宿主 /run/secrets 与 guest 的 /tmp 瞬间存在）
     ENV_FILE="$(mktemp /tmp/router-vm-env.XXXXXX)"
-    trap 'rm -f "$ENV_FILE"' EXIT
     chmod 600 "$ENV_FILE"
     if [ -n "''${ROUTER_VM_ENV_FILE:-}" ]; then
         cp "$ROUTER_VM_ENV_FILE" "$ENV_FILE"
@@ -110,7 +110,11 @@ let
         if ping -c 1 -W 1 "$VM_IP" >/dev/null 2>&1; then _online=1; break; fi
         sleep 2
     done
-    [ "$_online" = 1 ] || { echo "错误: VM 未上线（$VM_IP），部署中止" >&2; exit 1; }
+    if [ "$_online" != 1 ]; then
+        echo "错误: VM 未上线（$VM_IP），部署中止" >&2
+        rm -f "$ENV_FILE"
+        return 1
+    fi
 
     # 上传 + 远程注入。网络可达 ≠ sshd 就绪，重试 5 次（每次间隔 5 秒）
     _rc=1
@@ -122,8 +126,39 @@ let
         then _rc=0; break; fi
         sleep 5
     done
-    [ "$_rc" = 0 ] || { echo "错误: 密钥注入失败" >&2; exit 1; }
+    rm -f "$ENV_FILE"
+    if [ "$_rc" != 0 ]; then
+        echo "错误: 密钥注入失败" >&2
+        return 1
+    fi
     echo "部署完成。Tailscale 已自动触发登录（approve/auto-approve 在 admin 侧处理）"
+    return 0
+  '';
+
+  # 部署守护（systemd 单元执行）：每次 VM boot 后注入一遍。
+  # 为什么是常驻循环而不是 oneshot + PartOf：PartOf 只传播显式
+  # stop/restart——CH 崩溃后 router-vm 的 Restart=on-failure 是 systemd
+  # 内部重启，不会重新拉起已完成的 oneshot。届时 guest tmpfs 已清空
+  # （host key/authorized_keys/tailscale 全没了），无人重新注入且无任何
+  # 报错——服务全"正常"，只是状态是空的。循环语义：注入 → 等 ssh 掉线
+  # （VM 关机/崩溃）→ 等新 boot 上线 → 再注入。注入幂等，误判的代价
+  # 只是多跑一轮。
+  deployScript = ''
+    set -eu
+
+    _inject_once() { ${injectOnce} }
+
+    while true; do
+        if _inject_once; then
+            echo "注入完成；等待 VM 下一次 boot（ssh 掉线即触发下一轮）..."
+            while sshpass -p root ssh ${sshOpts} "root@${cfg.vmIp}" true 2>/dev/null; do
+                sleep 5
+            done
+        else
+            echo "注入失败（VM 未上线或注入出错），5 秒后重试 ..." >&2
+        fi
+        sleep 5
+    done
   '';
 in
 
@@ -243,10 +278,22 @@ in
         mkdir -p /var/lib/router-vm /run/router-vm
 
         # rootfs 只读副本（幂等；ExecStart 引用含哈希路径，升级时 systemd
-        # 检测 ExecStart 变化自动重启 VM）
+        # 检测 ExecStart 变化自动重启 VM）。原子落位：先写临时文件再 mv——
+        # 直写最终路径时拷贝中断（磁盘满/系统崩溃）会留下损坏副本，且
+        # [ ! -f ] 从此永远跳过重拷，VM 用坏镜像起不来 + Restart=on-failure
+        # 无限循环、无自愈路径
         if [ ! -f "${rootfsCopy}" ]; then
-          install -m 0644 "${rootfsImage}" "${rootfsCopy}"
+          _tmp="${rootfsCopy}.tmp.$$"
+          install -m 0644 "${rootfsImage}" "$_tmp"
+          # 完整性：字节数与原镜像一致才算拷完（qcow2 无内嵌校验和；
+          # 同主机拷贝，size 校验已能拦下磁盘满/中断等绝大多数场景）
+          if [ "$(stat -c %s "$_tmp")" != "$(stat -c %s "${rootfsImage}")" ]; then
+            rm -f "$_tmp"
+            exit 1
+          fi
+          mv "$_tmp" "${rootfsCopy}"
         fi
+        rm -f "${rootfsCopy}".tmp.*  # 清理历史中断残留（$$ 已变，不会误删在用的）
 
         # tap 创建（挂桥由 networkd 负责，见上方 systemd.network）
         for _tap in router-wan router-lan; do
@@ -291,14 +338,21 @@ in
       };
     };
 
-    # ---- 密钥注入：每次 VM 启动后自动 deploy（guest tmpfs 状态随重启清空，
-    #      必须重新注入）。PartOf：宿主重启 VM 时同步重新 deploy ----
+    # ---- 密钥注入：常驻守护，每次 VM boot 后注入（guest tmpfs 状态随重启
+    #      清空，必须重新注入）。Type=simple 循环脚本覆盖所有 boot 来源
+    #      （首次启动/显式重启/CH 崩溃后的自动重启），PartOf 保证生命周期
+    #      随 VM。Restart=always 是脚本自身意外退出的兜底
+    #      （systemd 默认 StartLimitBurst 防止秒退风暴）----
     systemd.services.router-vm-deploy = {
-      description = "Router VM secret injection (after each VM boot)";
+      description = "Router VM secret injection (re-inject on every VM boot)";
       after = [ "router-vm.service" ];
       partOf = [ "router-vm.service" ];
       wantedBy = [ "multi-user.target" ];
-      serviceConfig.Type = "oneshot";
+      serviceConfig = {
+        Type = "simple";
+        Restart = "always";
+        RestartSec = 5;
+      };
       script = deployScript;
     };
 
@@ -310,8 +364,11 @@ in
       builtins.readFile ../deploy-assets/env.example;
 
     environment.systemPackages = [
+      # 手工部署命令 = 单次注入（与 systemd 守护共用 injectOnce 函数体；
+      # 手工执行时不需要常驻循环）
       (pkgs.writeShellScriptBin "router-vm-deploy" ''
-        exec ${pkgs.bash}/bin/bash -c ${lib.escapeShellArg deployScript}
+        _inject_once() { ${injectOnce} }
+        _inject_once
       '')
 
       (pkgs.writeShellScriptBin "router-vm-shell" ''
