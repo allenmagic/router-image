@@ -44,7 +44,14 @@ inject_secrets() {
         chmod 600 /etc/tailscale/authkey
         rc-service tailscale start 2>/dev/null || true
         mkdir -p /run/tailscale
-        nohup sh -c 'for _i in 1 2 3 4 5 6; do sleep 2; tailscale up && exit 0; done' \
+        # 显式传 netfilter/路由参数：config.json 的 netfilterMode/acceptRoutes/
+        # advertiseRoutes 字段在 tailscale 1.102 不被读取（--config 不支持），
+        # 裸 tailscale up 会用默认 netfilter（iptables），在 nftables 环境建
+        # ts-input 链失败，导致 tailscale 系统流量（入站 ICMP/TCP）进不了 guest。
+        # 故显式：--netfilter-mode=off（不建 iptables 链，nftables 已放行
+        # @vpn_interfaces）、--accept-routes、--advertise-routes（LAN 网段，
+        # 与 network.env 的 TS_ADVERTISE_ROUTES 一致）、--accept-dns=false。
+        nohup sh -c 'for _i in 1 2 3 4 5 6; do sleep 2; tailscale up --netfilter-mode=off --accept-routes --advertise-routes=192.168.10.0/24 --accept-dns=false && exit 0; done' \
             >/run/tailscale/up.log 2>&1 &
         echo "  → Tailscale authkey 已注入，自动登录（tailscale up 后台执行）"
     else
