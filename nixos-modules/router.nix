@@ -33,7 +33,7 @@ let
   # 本仓库 CI release（sync-flake-sha.py 在每次 release 后自动同步 tag 与
   # sha256；首次新前缀 release 前 sha256 为占位 0，fetchurl 会失败并显示
   # 真实值，release 触发后 CI 自动回填）
-  imageRelease = "router-vm-20260905";
+  imageRelease = "router-vm-20260907";
   releaseBase = "https://github.com/allenmagic/router-image/releases/download/${imageRelease}";
 
   # rootfs 资产表（按发行版；vmlinuz-router 是发行版无关的共享内核资产）。
@@ -41,11 +41,11 @@ let
   osAssets = {
     alpine = {
       url = "${releaseBase}/alpine-rootfs.qcow2";
-      sha256 = "b118e4b131fe8b61749c584a31ed4e28c9e1886d981a1bf5361a232a504b5691";
+      sha256 = "17735d1afa7518fbab1b46625fa0f9be32bb4a43fb5700624cd01fe8b8e4c24f";
     };
     gentoo = {
       url = "${releaseBase}/gentoo-rootfs.qcow2";
-      sha256 = "dd87d6f918a4490f71267a2663ef5ba57d0efc603c5e09a17d902e7baea15f11";
+      sha256 = "d6cb987a3f07ebe409781e0f5d0dbbf9180dba6734ec518b022358c6532c2430";
     };
   };
 
