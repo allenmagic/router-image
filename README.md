@@ -3,9 +3,9 @@
 路由 VM 镜像的**唯一仓库**：镜像生产（CI）+ 消费端声明（flake 模块）。
 rootfs 构建链移植自
 [nanopi-r3s-rootfs](https://github.com/allenmagic/nanopi-r3s-rootfs)，
-并按 VM 场景收敛为 **x86_64 专用**（无跨架构/binfmt/qemu 机制），
+并按 VM 场景收敛为 **x86_64 专用**；
 双发行版链（Alpine / Gentoo，均为 musl + OpenRC）；
-自建单一内核（引导链全 builtin、无 initramfs），产出两件套 release 资产。
+自建单一裁剪内核（引导链全 builtin、按需收敛保持精简），产出两件套 release 资产。
 
 ## 架构
 
@@ -26,10 +26,13 @@ NixOS 宿主
     └── 重启即清空 → 宿主重新 deploy（幂等，操作者无感知）
 ```
 
-- **不依赖 microvm.nix**：systemd 单元自管 tap/挂桥/balloon/关机，
-  flake 输入只剩 nixpkgs
-- **内核唯一**：`kernel/build.sh` 自建（跟最新 LTS，全 builtin），
-  无 initramfs、无 modloop；CVE 响应 = LTS bump（CI 按 KVER 自动重编）
+- **VM 基于 cloud-hypervisor 的声明式处理**：`services.router-vm` 用
+  systemd 单元直管 cloud-hypervisor——tap 创建/挂桥、balloon、优雅关机
+  （api-socket）全部由 NixOS 声明式配置自管
+- **内核唯一且裁剪**：`kernel/build.sh` 自建（跟最新 LTS），引导链全
+  builtin 直接引导；config.fragment 按 VM 实际设备与规则裁剪（只保留
+  virtio 三件套 + nftables 实际用到的表达式等），保持足够精简；
+  CVE 响应 = LTS bump（CI 按 KVER 自动重编）
 - **guest 无状态**：持久化数据（ssh key / tailscale authkey / cloudflared
   token 等纯文本）由宿主 sops-nix 管理，deploy 时注入 /run；
   镜像升级不丢状态（状态根本不在镜像里）
@@ -40,7 +43,7 @@ NixOS 宿主
 
 | 环节 | 位置 |
 |---|---|
-| 内核构建（vmlinuz-router，全 builtin） | `kernel/build.sh`（CI 独立作业） |
+| 内核构建（vmlinuz-router，裁剪内核 / 全 builtin） | `kernel/build.sh`（CI 独立作业） |
 | rootfs 构建 + 装配（两件套 release） | `distros/{alpine,gentoo}/` + `image/assemble.sh` |
 | 消费端声明（fetchurl/CH systemd 单元/tap 挂桥/deploy） | 本仓库 `nixosModules.router` |
 | 密钥注入 | 本仓库 `deploy-assets/`（模块内打包；密钥经宿主 sops-nix `/run/secrets` 注入，不进 git/store） |
@@ -79,15 +82,14 @@ ExecStart 变化 → VM 自动重启；旧副本保留，宿主 rollback 直接�
 ## 构建流程（本地）
 
 ```bash
-# 1. 构建内核（全 builtin，无 initramfs；产物 kernel/out/vmlinuz-router +
-#    config-router + modules 元数据树）
+# 1. 构建裁剪内核（全 builtin；产物 kernel/out/vmlinuz-router + config-router）
 ./kernel/build.sh
 
 # 2. 构建 rootfs（双链二选一；产物 build/<distro>/<distro>-rootfs-minimal.tar.xz）
 sudo -E PACK=1 bash distros/alpine/build.sh
 sudo -E PACK=1 bash distros/gentoo/build.sh
 
-# 3. 装配 VM 镜像（注入自建内核模块元数据 → mkfs.ext4 → qcow2）
+# 3. 装配 VM 镜像（mkfs.ext4 → qcow2）
 ./image/assemble.sh build/alpine/alpine-rootfs-minimal.tar.xz dist alpine
 # 产物：dist/{alpine-rootfs.qcow2, SHA256SUMS}（内核资产在 kernel/out/）
 ```
@@ -117,8 +119,7 @@ user-mode 网卡覆盖）。真实网络环境（tap + 桥 + 上游）验收走
 
 ## 关键设计
 
-- **x86_64 专用**：ARCH 固定在构建脚本内；跨架构映射、binfmt 预检、qemu 注入
-  已整体移除。
+- **x86_64 专用**：ARCH 固定在构建脚本内。
 - **双发行版 musl-openrc**：alpine 与 gentoo 链共用 `base/` 配置体系
   （init.d/conf.d/runlevels），消费端 `os` 选项切换。
 - **串口控制台（ttyS0/115200）**：getty 常驻 ttyS0，宿主侧落盘
