@@ -1,6 +1,6 @@
 # router-image
 
-Alpine 路由 VM 的**唯一仓库**：镜像生产（CI）+ 消费端声明（flake 模块）。
+路由 VM 镜像的**唯一仓库**：镜像生产（CI）+ 消费端声明（flake 模块）。
 rootfs 构建链移植自
 [nanopi-r3s-rootfs](https://github.com/allenmagic/nanopi-r3s-rootfs)，
 并按 VM 场景收敛为 **x86_64 专用**（无跨架构/binfmt/qemu 机制），
