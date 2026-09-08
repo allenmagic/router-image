@@ -506,6 +506,16 @@ fi
 # §3.3）。状态统一挂 /run/router-vm/ 单根，审计 = ls /run/router-vm。
 # 清单与 base/init/openrc/run-state 的 RUN_DIRS 一一对应。
 echo "[setup] === 运行时目录链接 ==="
+# 构建/包安装残留目录清理（2026-09）：运行时零写流量的空目录——
+# nftables（自定义服务直接 nft -f，不走发行版 save 目录）、
+# iptables/ip6tables（不装 iptables 包，stage3 残留）、
+# portage/gentoo（ROOT= emerge 残留）。
+# 必须在 /var/lib 烙链接之前删——链接后 rm -rf 不跟随目录链接
+rm -rf "${TARGET_ROOTFS}/var/lib/nftables" \
+       "${TARGET_ROOTFS}/var/lib/iptables" \
+       "${TARGET_ROOTFS}/var/lib/ip6tables" \
+       "${TARGET_ROOTFS}/var/lib/portage" \
+       "${TARGET_ROOTFS}/var/lib/gentoo" 2>/dev/null || true
 _link_state_dir() {
     _sys="${TARGET_ROOTFS}$1"; _rel="$2"
     rm -rf "$_sys"

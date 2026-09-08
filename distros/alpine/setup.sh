@@ -184,6 +184,10 @@ rm -f /etc/init.d/hwclock /etc/init.d/swclock /etc/init.d/osclock 2>/dev/null ||
 # §3.3）。状态统一挂 /run/router-vm/ 单根，审计 = ls /run/router-vm。
 # 清单与 base/init/openrc/run-state 的 RUN_DIRS 一一对应。
 echo "[setup] === 运行时目录链接 ==="
+# 包安装残留清理（2026-09）：nftables 空目录——自定义服务直接
+# nft -f /etc/nftables.nft，不走发行版的 save 目录。
+# 必须在 /var/lib 烙链接之前删——链接后 rm -rf 不跟随目录链接
+rm -rf /var/lib/nftables 2>/dev/null || true
 _link_state_dir() {
     _sys="$1"; _rel="$2"
     rm -rf "$_sys"
