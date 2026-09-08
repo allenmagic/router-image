@@ -20,10 +20,16 @@ start() {
         ewarn "未注入 Cloudflared token，跳过启动（等待 router-vm-deploy 注入）"
         return 1
     fi
+    # 隧道协议固定 http2：QUIC（UDP 7844）在国内网络常被运营商干扰，
+    # 隧道频繁重连；http2 走 TCP 最稳。--protocol 位于 tunnel 与 run 之间
+    # （cloudflared 2026.8.3 实测接受此参数但 help 文本不列出，官方
+    # run-parameters 文档为准）。切换协议改此处并重建镜像。
     ebegin "Starting cloudflared"
     start-stop-daemon --start --quiet --background --make-pidfile --pidfile "$pidfile" \
         --stdout "$output_log" --stderr "$error_log" \
-        --exec /usr/local/bin/cloudflared -- --no-autoupdate --config /etc/cloudflared/config.yml tunnel run
+        --exec /usr/local/bin/cloudflared -- --no-autoupdate \
+        --config /etc/cloudflared/config.yml \
+        tunnel --protocol http2 run
     eend $?
 }
 
