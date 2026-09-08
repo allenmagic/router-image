@@ -102,7 +102,7 @@ if [ -w /tmp ] && touch /tmp/.vg-test 2>/dev/null; then
 else
     bad "/tmp 不可写 —— deploy scp 到 /tmp 会失败（需链到 /run/router-vm/tmp）"
 fi
-for _d in state/tailscale state/headscale state/ssh secrets tmp; do
+for _d in state/lib/tailscale state/lib/headscale state/ssh secrets tmp; do
     [ -d "/run/router-vm/$_d" ] && ok "/run/router-vm/$_d 目录存在（run-state）" || bad "缺 /run/router-vm/$_d（run-state 未建）"
 done
 

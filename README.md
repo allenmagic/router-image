@@ -142,8 +142,9 @@ user-mode 网卡覆盖）。真实网络环境（tap + 桥 + 上游）验收走
   `/run/router-vm/console.log`——网络故障时的最后恢复通道。
 - **ro rootfs + 构建期符号链接**：运行期无法在 ro 根上创建挂载点/链接，
   全部可写路径在镜像构建期烙入指向 `/run/router-vm`（tmpfs），并按语义
-  分层：`state/`（身份，stateDisk 时挂盘持久）、`secrets/`（deploy 注入的
-  密钥，绝不持久化）、其余（misc/log/tmp/rc，运行期工作区，重启重建）；
+  分层：`state/`（身份 + /var/lib 动态状态，stateDisk 时挂盘持久；
+  无盘则 tmpfs 易失）、`secrets/`（deploy 注入的密钥，绝不持久化）、
+  其余（log/tmp/rc，运行期工作区，重启重建）；
   写点失控时的回退路线见 `docs/refactor-proposal.md` §5。
 - **无密钥进镜像/store**：不使用 CI secrets；密钥由宿主 sops-nix 解密到
   `/run/secrets`，router-vm-deploy 每次 VM 启动后 scp 注入 guest /run

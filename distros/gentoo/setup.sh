@@ -512,14 +512,15 @@ _link_state_dir() {
     ln -s "/run/router-vm/$_rel" "$_sys"
     echo "[setup]   $1 -> /run/router-vm/$_rel"
 }
-# 持久身份候选：宿主启用 stateDisk 时 mount-state 服务把盘挂到
-# state/，否则它就是 /run 下普通目录 = 易失，与旧行为一致
-_link_state_dir /var/lib/tailscale state/tailscale
-_link_state_dir /var/lib/headscale state/headscale
+# /var/lib 整体链接到 state/lib：动态状态（tailscale/headscale 身份、
+# dnsmasq 租约、未来一切 /var/lib 写点）统一覆盖——宿主启用 stateDisk
+# 时 mount-state 把盘挂到 state/（lib 随盘持久），否则就是 /run 下
+# 普通目录 = 易失，与旧行为一致
+_link_state_dir /var/lib            state/lib
+# 持久身份候选（ssh 独立于 /var/lib）
 _link_state_dir /root/.ssh         state/ssh
 # 易失秘密（deploy 每次注入，绝不持久化）
 _link_state_dir /etc/cloudflared    secrets/cloudflared
-_link_state_dir /var/lib/misc       misc
 _link_state_dir /var/log            log
 _link_state_dir /var/tmp            tmp
 _link_state_dir /tmp                tmp
