@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-# 从 dist/SHA256SUMS 同步 nixos-modules/router.nix 的 release tag 与各资产 sha256
-# 用法：python3 image/sync-flake-sha.py <SHA256SUMS> <router.nix> <release-tag>
+# 从 dist/SHA256SUMS 同步 nixos-modules/assets.nix 的 release tag 与各资产 sha256
+# 用法：python3 image/sync-flake-sha.py <SHA256SUMS> <assets.nix> <release-tag>
 #
-# SHA256SUMS 驱动：遍历全部条目，对 router.nix 中 url 以该资产名结尾的
+# SHA256SUMS 驱动：遍历全部条目，对 assets.nix 中 url 以该资产名结尾的
 # sha256 行做锚定替换——新增发行版时只需 SHA256SUMS 多一个条目（模块内
 # 已有对应 osAssets 行则自动同步；否则警告提示补行）。
 # 幂等：值相同则文件不变（git diff 为空，调用方跳过提交）。

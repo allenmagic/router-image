@@ -221,20 +221,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # release 资产就位后，把 tag+sha256 同步进 nixos-modules/router.nix
+      # release 资产就位后，把 tag+sha256 同步进 nixos-modules/assets.nix
       # 并提交（消费端升级只需 nix flake update）。幂等：同日重跑值不变则跳过
       # 提交。push 不会循环触发本 workflow（仅 workflow_dispatch）。
       - name: Sync flake checksums
         run: |
           set -euo pipefail
           python3 image/sync-flake-sha.py \
-            dist/SHA256SUMS nixos-modules/router.nix "${{ steps.tag.outputs.tag }}"
+            dist/SHA256SUMS nixos-modules/assets.nix "${{ steps.tag.outputs.tag }}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           if git diff --quiet; then
             echo "sha256 无变化（同日重复构建），跳过提交"
           else
-            git add nixos-modules/router.nix
+            git add nixos-modules/assets.nix
             git commit -m "ci: sync release checksums to ${{ steps.tag.outputs.tag }}"
             # 同日多次触发时远端可能有上一次的 sync 提交——rebase 后推送；
             # 冲突（同日两次构建的 sha256 不一致）时放弃推送，sync 失败不阻塞 job

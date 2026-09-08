@@ -5,7 +5,7 @@
 # 镜像 release 的 tag 与各资产 sha256 硬编码在模块内（与本仓库 CI 同源），
 # 消费端升级只需 nix flake update。
 {
-  description = "Alpine router VM image production + NixOS consumption module";
+  description = "Router VM image production + NixOS consumption module (alpine/gentoo dual-distro)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
