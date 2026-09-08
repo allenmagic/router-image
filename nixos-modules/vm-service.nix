@@ -104,12 +104,10 @@ in
         ExecStop = "${pkgs.cloud-hypervisor}/bin/ch-remote --api-socket /run/router-vm/api.sock shutdown-vmm";
         TimeoutStopSec = 90;
 
-        # 清理：socket + tap（guest 自身关机/崩溃路径下 ExecStop 不会跑）
-        ExecStopPost = ''
-          rm -f /run/router-vm/api.sock
-          ip link del router-wan 2>/dev/null || true
-          ip link del router-lan 2>/dev/null || true
-        '';
+        # 清理：socket + tap（guest 自身关机/崩溃路径下 ExecStop 不会跑）。
+        # 单行分号连接——多行 '' 会生成缺 ExecStopPost= 前缀的裸行，
+        # systemd 报 "Missing '='" 且仅执行首行（2026-09-08 修复）
+        ExecStopPost = "rm -f /run/router-vm/api.sock; ip link del router-wan 2>/dev/null || true; ip link del router-lan 2>/dev/null || true";
 
         Restart = "on-failure";
       };

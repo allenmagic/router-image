@@ -30,5 +30,13 @@ start() {
     }
     ebegin "Mounting host state disk on /run/router-vm/state"
     mount -t ext4 -o noatime /dev/vdb /run/router-vm/state
-    eend $?
+    local _rc=$?
+    # 挂载后重建子目录：run-state 在挂载前（tmpfs 上）建好的 state/*
+    # 子目录被空盘遮住，必须重新 mkdir——否则 sshd-keys（state/ssh）、
+    # dnsmasq（state/lib/misc）、tailscale/headscale（state/lib/*）因目录
+    # 缺失启动失败（2026-09-08 断网根因）。幂等，复用已有盘时无害。
+    for _d in lib/tailscale lib/headscale lib/misc ssh; do
+        mkdir -p "/run/router-vm/state/$_d" || _rc=1
+    done
+    eend $_rc
 }
