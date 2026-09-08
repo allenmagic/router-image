@@ -76,9 +76,13 @@ inject_secrets() {
     fi
 
     # Cloudflared: token 写入 /etc/cloudflared/config.yml 后重启服务——
-    # 出厂时服务已在跑（无 token 空转），注入 token 必须重启才生效
+    # 出厂时服务已在跑（无 token 空转），注入 token 必须重启才生效。
+    # /etc/cloudflared 是符号链接 → /run/router-vm/secrets/cloudflared（tmpfs），
+    # mkdir 必须作用于链接目标而非链接本身——目标是 dangling 时
+    # mkdir -p /etc/cloudflared 报 "No such file or directory"（2026-09-08）。
+    # readlink -f 解析最终目标；即便未来改回真实目录也兼容。
     if [ -n "${CLOUDFLARED_TOKEN:-}" ]; then
-        mkdir -p /etc/cloudflared
+        mkdir -p "$(readlink -f /etc/cloudflared 2>/dev/null || echo /etc/cloudflared)"
         printf 'token: %s\n' "${CLOUDFLARED_TOKEN}" > /etc/cloudflared/config.yml
         chmod 600 /etc/cloudflared/config.yml
         rc-service cloudflared restart 2>/dev/null || true
