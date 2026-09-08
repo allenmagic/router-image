@@ -8,11 +8,11 @@
 #   - daemon 级参数必须显式错开：state/socket 用 /var/lib/headscale
 #     （镜像内符号链接 → /run/router-vm/headscale，与官方实例同构的
 #     易失语义——重启即清、新节点重新注册，key 需 reusable+ephemeral）、
-#     UDP 41642（官方 41641）、TUN ts0、--netfilter-mode=nodivert
-#     （第二实例不接管防火墙链，官方实例已建 ts-input 等链）
-#   - config.json（/etc/headscale/config.json）含 loginServer 字段，
-#     指向自建 Headscale（__HEADSCALE_CTL_URL__，network.sh 按
-#     network.env 替换）
+#     UDP 41642（官方 41641）、TUN ts0
+#   - config.json（/etc/headscale/config.json）含 serverURL 字段
+#     （netfilterMode 也由 config.json 承载，第二实例与官方实例同为 "off"、
+#     不接管防火墙链），指向自建 Headscale（__HEADSCALE_CTL_URL__，
+#     network.sh 按 network.env 替换）
 #
 # authkey 由 router-vm-deploy 注入 /etc/headscale/authkey（链接 →
 # /run/router-vm/headscale/authkey），见 deploy-assets/lib/secrets.sh。
@@ -53,8 +53,7 @@ start() {
         --state=/var/lib/headscale/tailscaled.state \
         --socket=/var/lib/headscale/tailscaled.sock \
         --port=41642 \
-        --tun=ts0 \
-        --netfilter-mode=nodivert
+        --tun=ts0
     eend $?
 }
 
