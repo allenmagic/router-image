@@ -14,16 +14,20 @@ NixOS 宿主
 ├── services.router-vm（本仓库 nixosModules.router，cloud-hypervisor 直管）
 │   ├── router-vm.service        系统单元直接 ExecStart cloud-hypervisor
 │   │   ├── preStart             rootfs 只读副本（内容哈希路径）+ tap 创建
+│   │   │                        + 状态盘首次 mkfs（stateDisk 启用时）
 │   │   ├── --disk readonly=on   guest rootfs 只读挂载
+│   │   ├── --disk readonly=off  可选状态盘（stateDisk）→ guest /dev/vdb
 │   │   ├── --balloon            可选（默认关）；deflate_on_oom 在 guest 内存压力时放气
 │   │   ├── --api-socket         优雅关机（ExecStop=ch-remote shutdown-vmm）
 │   │   └── --serial file        串口落盘 /run/router-vm/console.log
 │   ├── router-vm-deploy.service 每次 VM 启动后：sops 密钥 scp 注入 guest /run
 │   └── systemd.network          tap → br-wan/br-lan 自动挂桥
-└── guest（ro rootfs，完全无状态）
-    ├── 构建期烙入的符号链接（/var/lib/tailscale、/etc/cloudflared、
-    │   /var/log、/root/.ssh … → /run/router-vm tmpfs）
-    └── 重启即清空 → 宿主重新 deploy（幂等，操作者无感知）
+└── guest（ro rootfs）
+    ├── /run/router-vm/state     持久身份（stateDisk 挂盘时）：host key /
+    │   authorized_keys / 两个 tailscale 实例的 tailscaled.state
+    ├── /run/router-vm/secrets   deploy 注入的密钥（易失，绝不落盘）
+    └── 其余写点（/var/log、/tmp…）经构建期烙入的符号链接 → /run/router-vm
+        （tmpfs，重启即清 → 宿主重新 deploy，幂等、操作者无感知）
 ```
 
 - **VM 基于 cloud-hypervisor 的声明式处理**：`services.router-vm` 用
@@ -33,9 +37,11 @@ NixOS 宿主
   builtin 直接引导；config.fragment 按 VM 实际设备与规则裁剪（只保留
   virtio 三件套 + nftables 实际用到的表达式等），保持足够精简；
   CVE 响应 = LTS bump（CI 按 KVER 自动重编）
-- **guest 无状态**：持久化数据（ssh key / tailscale authkey / cloudflared
-  token 等纯文本）由宿主 sops-nix 管理，deploy 时注入 /run；
-  镜像升级不丢状态（状态根本不在镜像里）
+- **guest 无状态 + 身份可持久**：密钥（authkey / token 等纯文本）由宿主
+  sops-nix 管理，deploy 时注入 /run，绝不落盘；身份（SSH host key、
+  tailscale/headscale 节点）可选经 `stateDisk` 持久到宿主磁盘——官方
+  Tailscale 免重复 approve、节点身份/IP 固定。镜像升级不丢状态
+  （状态根本不在镜像里）
 - 设计决策与风险分析见 `docs/refactor-proposal.md`，实施计划见
   `docs/refactor-plan.md`
 
@@ -65,11 +71,21 @@ services.router-vm = {
   mem = 256;               # guest 内存上限 MB（默认 256）
   initialBalloonMem = 0;   # 初始 balloon 充气 MB（默认 0=不启用；注意会从 mem 里扣）
 
+  # 持久状态盘（可选，默认 null=不启用）：guest 的 SSH host key、
+  # authorized_keys 与两个 tailscale 实例（官方 tailscale0 + headscale ts0）
+  # 的节点身份落宿主磁盘（/var/lib/router-vm/state.raw，第二块 virtio-blk），
+  # VM 重启后复用——官方 Tailscale 免重复 approve、节点身份/IP 固定。
+  # 删除 state.raw = 重置全部身份；密钥（authkey/token）仍只经 deploy 注入
+  # /run，绝不落盘。
+  stateDisk = { sizeMB = 64; };   # 或 stateDisk = { }（用默认 64M）
+
   wanBridge = "br-wan";    # WAN 侧宿主桥（默认 br-wan）
   lanBridge = "br-lan";    # LAN 侧宿主桥（默认 br-lan）
   vmIp = "192.168.10.1";   # VM LAN 口 IP（deploy 的 ssh 目标）
 
-  secretsDir = "/run/secrets"; # sops-nix 解密落点（默认；三个密钥文件名见模块 option）
+  secretsDir = "/run/secrets"; # sops-nix 解密落点（默认；密钥文件名见模块 option：
+                               # ssh-public-key / tailscale-auth-key /
+                               # headscale-auth-key / cloudflared-token）
 };
 ```
 
@@ -125,9 +141,10 @@ user-mode 网卡覆盖）。真实网络环境（tap + 桥 + 上游）验收走
 - **串口控制台（ttyS0/115200）**：getty 常驻 ttyS0，宿主侧落盘
   `/run/router-vm/console.log`——网络故障时的最后恢复通道。
 - **ro rootfs + 构建期符号链接**：运行期无法在 ro 根上创建挂载点/链接，
-  全部可写路径（状态目录、/etc/mtab、/etc/resolv.conf、sshd host key）在
-  镜像构建期烙入指向 `/run`（tmpfs）；写点失控时的回退路线见
-  `docs/refactor-proposal.md` §5。
+  全部可写路径在镜像构建期烙入指向 `/run/router-vm`（tmpfs），并按语义
+  分层：`state/`（身份，stateDisk 时挂盘持久）、`secrets/`（deploy 注入的
+  密钥，绝不持久化）、其余（misc/log/tmp/rc，运行期工作区，重启重建）；
+  写点失控时的回退路线见 `docs/refactor-proposal.md` §5。
 - **无密钥进镜像/store**：不使用 CI secrets；密钥由宿主 sops-nix 解密到
   `/run/secrets`，router-vm-deploy 每次 VM 启动后 scp 注入 guest /run
   （guest 内 env 文件用后即删）。release 产物公开可下载，密钥绝不进入。
