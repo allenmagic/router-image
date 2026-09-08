@@ -26,7 +26,7 @@ STATE_ROOT="/run/router-vm"
 # （rc 是 gentoo 链 openrc depcache 的 /var/cache/rc 目标；
 #   state/* 为持久身份候选——宿主启用 stateDisk 时由 mount-state
 #   挂盘，否则保持 tmpfs 易失；secrets 为 deploy 注入的秘密，绝不持久化）
-RUN_DIRS="state/lib/tailscale state/lib/headscale state/lib/misc state/ssh secrets log tmp rc"
+RUN_DIRS="state/lib/tailscale state/lib/headscale state/lib/misc state/ssh secrets secrets/cloudflared log tmp rc"
 
 depend() {
     before sshd sshd-keys ntpd dnsmasq tailscale headscale cloudflared network-watchdog keepalived network
@@ -41,6 +41,6 @@ start() {
     done
     # 属主（失败不阻塞）：tailscale 守护进程降权后需要写自己的目录；
     # ssh 目录保持 root（sshd-keys 以 root 生成）
-    chown tailscale:tailscale "$STATE_ROOT/tailscale" 2>/dev/null || true
+    chown tailscale:tailscale "$STATE_ROOT/state/lib/tailscale" 2>/dev/null || true
     eend $_rc
 }
