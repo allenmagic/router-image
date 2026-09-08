@@ -99,6 +99,8 @@ let
             && printf 'SSH_PUBLIC_KEY="%s"\n' "$(cat "$SECRETS_DIR/ssh-public-key")" >> "$ENV_FILE"
         [ -f "$SECRETS_DIR/tailscale-auth-key" ] \
             && printf 'TAILSCALE_AUTH_KEY="%s"\n' "$(cat "$SECRETS_DIR/tailscale-auth-key")" >> "$ENV_FILE"
+        [ -f "$SECRETS_DIR/headscale-auth-key" ] \
+            && printf 'HEADSCALE_AUTH_KEY="%s"\n' "$(cat "$SECRETS_DIR/headscale-auth-key")" >> "$ENV_FILE"
         [ -f "$SECRETS_DIR/cloudflared-token" ] \
             && printf 'CLOUDFLARED_TOKEN="%s"\n' "$(cat "$SECRETS_DIR/cloudflared-token")" >> "$ENV_FILE"
     fi

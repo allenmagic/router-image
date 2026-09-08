@@ -24,10 +24,10 @@ STATE_ROOT="/run/router-vm"
 
 # 与 setup.sh 烙入的符号链接目标一一对应
 # （rc 是 gentoo 链 openrc depcache 的 /var/cache/rc 目标）
-RUN_DIRS="tailscale cloudflared ssh misc log tmp rc"
+RUN_DIRS="tailscale headscale cloudflared ssh misc log tmp rc"
 
 depend() {
-    before sshd sshd-keys ntpd dnsmasq tailscale cloudflared network-watchdog keepalived network
+    before sshd sshd-keys ntpd dnsmasq tailscale headscale cloudflared network-watchdog keepalived network
 }
 
 start() {

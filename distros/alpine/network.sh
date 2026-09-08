@@ -54,6 +54,16 @@ _replace_placeholders() {
             "${_TS}"
     fi
 
+    # headscale 第二实例（ts0）的登录参数
+    _HS="/etc/init.d/headscale"
+    if [ -f "${_HS}" ]; then
+        sed -i \
+            -e "s|__HEADSCALE_CTL_URL__|${HEADSCALE_CTL_URL}|g" \
+            -e "s|__HEADSCALE_HOSTNAME__|${HEADSCALE_HOSTNAME}|g" \
+            -e "s|__HEADSCALE_ADVERTISE_ROUTES__|${HEADSCALE_ADVERTISE_ROUTES}|g" \
+            "${_HS}"
+    fi
+
     # network 服务（WAN/LAN 接口与 IP）
     _NET="/etc/init.d/network"
     if [ -f "${_NET}" ]; then

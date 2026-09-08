@@ -75,7 +75,7 @@ _check_ca_certs() {
         fi
     }
     echo "[check] 配置占位符:"
-    for _f_ in /etc/dnsmasq.d/*.conf /etc/nftables.d/*.nft; do
+    for _f_ in /etc/dnsmasq.d/*.conf /etc/nftables.d/*.nft /etc/init.d/headscale; do
         [ -f "$_f_" ] && _check_no_placeholder "$_f_"
     done
 
@@ -108,6 +108,7 @@ _check_ca_certs() {
     _check_openrc nftables
     _check_openrc dnsmasq
     _check_openrc tailscale
+    _check_openrc headscale
     _check_openrc cloudflared
     _check_openrc network-watchdog
     # keepalived（VRRP 浮动网关）：gentoo 侧一直查，alpine 曾漏（2026-09 对称化）

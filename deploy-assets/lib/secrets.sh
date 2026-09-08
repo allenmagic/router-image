@@ -58,6 +58,21 @@ inject_secrets() {
         echo "  → 未提供 TAILSCALE_AUTH_KEY，跳过"
     fi
 
+    # Headscale（自建控制面，第二 tailscale 实例 ts0）：authkey 写入
+    # /run/router-vm/headscale/authkey 后重启服务——init 脚本负责起
+    # tailscaled（独立 state/socket，UDP 41642，TUN ts0）并后台 tailscale
+    # up（--login-server 等参数烙在镜像）。key 需 reusable + Ephemeral
+    # （与官方实例同理：无状态 guest 每次重启都是新节点重新注册）
+    if [ -n "${HEADSCALE_AUTH_KEY:-}" ]; then
+        mkdir -p /run/router-vm/headscale
+        printf '%s' "${HEADSCALE_AUTH_KEY}" > /run/router-vm/headscale/authkey
+        chmod 600 /run/router-vm/headscale/authkey
+        rc-service headscale restart 2>/dev/null || true
+        echo "  → Headscale authkey 已注入并重启服务"
+    else
+        echo "  → 未提供 HEADSCALE_AUTH_KEY，跳过"
+    fi
+
     # Cloudflared: token 写入 /etc/cloudflared/config.yml 后重启服务——
     # 出厂时服务已在跑（无 token 空转），注入 token 必须重启才生效
     if [ -n "${CLOUDFLARED_TOKEN:-}" ]; then

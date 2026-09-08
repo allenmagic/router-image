@@ -44,6 +44,7 @@ enable_router_services() {
 
     # 4. VPN 和隧道服务
     _enable_service tailscale
+    _enable_service headscale
     _enable_service cloudflared
 
     # 5. 监控服务
