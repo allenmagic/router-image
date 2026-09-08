@@ -38,11 +38,11 @@ in
         osAssets = {
           alpine = {
             url = "${releaseBase}/alpine-rootfs.qcow2";
-            sha256 = "347b9928624b8a37660dbdbb2d83ce84efc99e6103ee663946ab4ecb1637dbb7";
+            sha256 = "e607543c560c0722671d62df34a91e5ad5b45ab55177e921ff734258c6db492e";
           };
           gentoo = {
             url = "${releaseBase}/gentoo-rootfs.qcow2";
-            sha256 = "b400e4d4d2f254c922c377bb375685c58a1ef7276c041c37bd00ca8fdaf1c918";
+            sha256 = "f7ff1d905f7e70a276c7c4a33c5eab3391a47126880f3e95f170c7cd3cea2f08";
           };
         };
 
