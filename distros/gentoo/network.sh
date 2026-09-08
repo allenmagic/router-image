@@ -56,13 +56,13 @@ _replace_placeholders() {
             "${_TS}"
     fi
 
-    # headscale 第二实例（ts0）的登录参数
-    _HS="${TARGET_ROOTFS}/etc/init.d/headscale"
+    # headscale 第二实例（ts0）的登录参数（config.json，与官方实例同构）
+    _HS="${TARGET_ROOTFS}/etc/headscale/config.json"
     if [ -f "${_HS}" ]; then
         sed -i \
-            -e "s|__HEADSCALE_CTL_URL__|${HEADSCALE_CTL_URL}|g" \
+            -e "s|__HEADSCALE_CTL_URL__|\"${HEADSCALE_CTL_URL}\"|g" \
             -e "s|__HEADSCALE_HOSTNAME__|${HEADSCALE_HOSTNAME}|g" \
-            -e "s|__HEADSCALE_ADVERTISE_ROUTES__|${HEADSCALE_ADVERTISE_ROUTES}|g" \
+            -e "s|__HEADSCALE_ADVERTISE_ROUTES__|\"${HEADSCALE_ADVERTISE_ROUTES}\"|g" \
             "${_HS}"
     fi
 

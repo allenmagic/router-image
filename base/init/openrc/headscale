@@ -3,29 +3,26 @@
 # headscale —— 自建 Tailscale 控制面的第二客户端实例（接口 ts0）
 #
 # 与官方 Tailscale 控制面（tailscale0，base/init/openrc/tailscale）
-# 并存：独立 state/socket、UDP 41642（错开官方实例的 41641）、
-# TUN 名 ts0。nftables 的 @vpn_interfaces 集合与 TS_PORT 放行
-# 已预留 ts0 与 41642（base/nftables.d/00-inet-vars.nft）。
+# 并存。结构与官方实例完全对称（--config 显式传 + config.json 驱动
+# 全部登录参数 + 裸 tailscale up），差异只在：
+#   - daemon 级参数必须显式错开：state/socket 用 /var/lib/headscale
+#     （镜像内符号链接 → /run/router-vm/headscale，与官方实例同构的
+#     易失语义——重启即清、新节点重新注册，key 需 reusable+ephemeral）、
+#     UDP 41642（官方 41641）、TUN ts0、--netfilter-mode=nodivert
+#     （第二实例不接管防火墙链，官方实例已建 ts-input 等链）
+#   - config.json（/etc/headscale/config.json）含 loginServer 字段，
+#     指向自建 Headscale（__HEADSCALE_CTL_URL__，network.sh 按
+#     network.env 替换）
 #
-# 登录参数（--login-server/--hostname/--advertise-routes）烙在本脚本，
-# 占位符由 network.sh 按 network.env 的 HEADSCALE_* 替换——参数属于
-# 环境配置；authkey 属于秘密，由 router-vm-deploy 注入
-# /run/router-vm/headscale/authkey（见 deploy-assets/lib/secrets.sh），
-# 注入后重启本服务并自动 up。
-#
-# 双实例共存的防火墙约定：本实例 --netfilter-mode=nodivert（tailscaled）
-# + up 时 --netfilter-mode=off——不建任何 nft/iptables 链（官方实例已
-# 接管），入站放行靠本仓库 nftables 按接口集合统一处理。
+# authkey 由 router-vm-deploy 注入 /etc/headscale/authkey（链接 →
+# /run/router-vm/headscale/authkey），见 deploy-assets/lib/secrets.sh。
+# nftables 的 @vpn_interfaces 集合与 TS_PORT 放行已预留 ts0/41642。
 # ============================================================
 
 name=$RC_SVCNAME
 description="Headscale client (second tailscaled instance, ts0)"
 
 pidfile="/run/router-vm/$name.pid"
-SOCKET="/run/router-vm/headscale/tailscaled.sock"
-STATE="/run/router-vm/headscale/tailscaled.state"
-AUTHKEY="/run/router-vm/headscale/authkey"
-LOG="/run/router-vm/headscale/up.log"
 
 depend() {
     need run-state net
@@ -34,36 +31,28 @@ depend() {
 }
 
 start_pre() {
-    mkdir -p /run/router-vm/headscale
+    mkdir -p /var/lib/headscale
 }
 
 start() {
     # 预检：tailscaled 在位 + authkey 已注入；不满足则跳过（stopped，不 crash）
     [ -x /usr/sbin/tailscaled ] || { eerror "tailscaled 未安装"; return 1; }
-    [ -s "$AUTHKEY" ] || {
+    if [ ! -s /etc/headscale/authkey ]; then
         ewarn "未注入 Headscale authkey，跳过启动（等待 router-vm-deploy 注入）"
         return 1
-    }
+    fi
+    # --config 必须显式传（与官方实例同构；config.json 不会自动读）。
+    # daemon 级参数（state/socket/port/tun）config.json 不承载，仍需 CLI
     ebegin "Starting headscale tailscaled (ts0, UDP 41642)"
     start-stop-daemon --start --quiet --background --make-pidfile --pidfile "$pidfile" \
         --exec /usr/sbin/tailscaled -- \
-        --state="$STATE" \
-        --socket="$SOCKET" \
+        --config=/etc/headscale/config.json \
+        --state=/var/lib/headscale/tailscaled.state \
+        --socket=/var/lib/headscale/tailscaled.sock \
         --port=41642 \
         --tun=ts0 \
         --netfilter-mode=nodivert
     eend $?
-
-    # up：后台重试（tailscaled 就绪有延迟，参考官方实例的 nohup 循环）。
-    # authkey 走 file: 机制；headscale 设备审批制下 up 可能阻塞等 approve，
-    # 放后台不卡 boot。
-    nohup sh -c 'for _i in 1 2 3 4 5 6 7 8; do sleep 2; tailscale --socket='"$SOCKET"' up \
-        --login-server=__HEADSCALE_CTL_URL__ \
-        --authkey=file:'"$AUTHKEY"' \
-        --hostname=__HEADSCALE_HOSTNAME__ \
-        --advertise-routes=__HEADSCALE_ADVERTISE_ROUTES__ \
-        --accept-routes --netfilter-mode=off --accept-dns=false \
-        && exit 0; done' >"$LOG" 2>&1 &
 }
 
 stop() {

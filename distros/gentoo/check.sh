@@ -95,7 +95,7 @@ check_rootfs() {
         fi
     }
     echo "[check] 配置占位符:"
-    for _f_ in "${TARGET_ROOTFS}"/etc/dnsmasq.d/*.conf "${TARGET_ROOTFS}"/etc/nftables.d/*.nft "${TARGET_ROOTFS}"/etc/init.d/headscale; do
+    for _f_ in "${TARGET_ROOTFS}"/etc/dnsmasq.d/*.conf "${TARGET_ROOTFS}"/etc/nftables.d/*.nft "${TARGET_ROOTFS}"/etc/headscale/config.json; do
         [ -f "$_f_" ] && _check_no_placeholder "$_f_"
     done
 

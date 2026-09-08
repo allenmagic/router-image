@@ -1,0 +1,10 @@
+{
+  "version": "alpha0",
+  "authKey": "file:/etc/headscale/authkey",
+  "hostname": "__HEADSCALE_HOSTNAME__",
+  "loginServer": __HEADSCALE_CTL_URL__,
+  "acceptRoutes": true,
+  "acceptDNS": false,
+  "netfilterMode": "off",
+  "advertiseRoutes": [__HEADSCALE_ADVERTISE_ROUTES__]
+}

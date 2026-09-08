@@ -513,6 +513,7 @@ _link_state_dir() {
     echo "[setup]   $1 -> /run/router-vm/$_rel"
 }
 _link_state_dir /var/lib/tailscale tailscale
+_link_state_dir /var/lib/headscale headscale
 _link_state_dir /etc/cloudflared    cloudflared
 _link_state_dir /var/lib/misc       misc
 _link_state_dir /var/log            log
@@ -542,6 +543,9 @@ mkdir -p "${TARGET_ROOTFS}/srv" "${TARGET_ROOTFS}/var/spool"
 # 只链接运行期注入的 authkey 文件
 rm -f "${TARGET_ROOTFS}/etc/tailscale/authkey"
 ln -s /run/router-vm/tailscale/authkey "${TARGET_ROOTFS}/etc/tailscale/authkey"
+# headscale 第二实例（ts0）同构：config.json 留在镜像内，authkey 链接到 /run
+rm -f "${TARGET_ROOTFS}/etc/headscale/authkey"
+ln -s /run/router-vm/headscale/authkey "${TARGET_ROOTFS}/etc/headscale/authkey"
 # host key 不靠符号链接（ssh-keygen 的临时文件写同目录，ro 上会失败），
 # 而是 base/ssh/sshd_config.d/state-hostkeys.conf 把 HostKey 指到
 # /run/router-vm/ssh/（sshd-keys 服务生成，每次启动更换）

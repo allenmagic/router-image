@@ -75,7 +75,7 @@ _check_ca_certs() {
         fi
     }
     echo "[check] 配置占位符:"
-    for _f_ in /etc/dnsmasq.d/*.conf /etc/nftables.d/*.nft /etc/init.d/headscale; do
+    for _f_ in /etc/dnsmasq.d/*.conf /etc/nftables.d/*.nft /etc/headscale/config.json; do
         [ -f "$_f_" ] && _check_no_placeholder "$_f_"
     done
 

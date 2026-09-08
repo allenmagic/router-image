@@ -56,17 +56,21 @@ inject_secrets() {
         echo "  → 未提供 TAILSCALE_AUTH_KEY，跳过"
     fi
 
-    # Headscale（自建控制面，第二 tailscale 实例 ts0）：authkey 写入
-    # /run/router-vm/headscale/authkey 后重启服务——init 脚本负责起
-    # tailscaled（独立 state/socket，UDP 41642，TUN ts0）并后台 tailscale
-    # up（--login-server 等参数烙在镜像）。key 需 reusable + Ephemeral
+    # Headscale（自建控制面，第二 tailscale 实例 ts0，与官方实例同构）：
+    # authkey 写入 /etc/headscale/authkey（config.json 引用）后启动
+    # tailscaled（--config 驱动全部登录参数：loginServer/authKey file:/
+    # hostname/routes/netfilterMode）并后台裸 tailscale up（socket 需
+    # 显式指定——默认 socket 属于官方实例）。key 需 reusable + Ephemeral
     # （与官方实例同理：无状态 guest 每次重启都是新节点重新注册）
     if [ -n "${HEADSCALE_AUTH_KEY:-}" ]; then
+        mkdir -p /etc/headscale
+        printf '%s' "${HEADSCALE_AUTH_KEY}" > /etc/headscale/authkey
+        chmod 600 /etc/headscale/authkey
+        rc-service headscale start 2>/dev/null || true
         mkdir -p /run/router-vm/headscale
-        printf '%s' "${HEADSCALE_AUTH_KEY}" > /run/router-vm/headscale/authkey
-        chmod 600 /run/router-vm/headscale/authkey
-        rc-service headscale restart 2>/dev/null || true
-        echo "  → Headscale authkey 已注入并重启服务"
+        nohup sh -c 'for _i in 1 2 3 4 5 6; do sleep 2; tailscale --socket=/var/lib/headscale/tailscaled.sock up && exit 0; done' \
+            >/run/router-vm/headscale/up.log 2>&1 &
+        echo "  → Headscale authkey 已注入，自动登录（tailscale up 后台执行）"
     else
         echo "  → 未提供 HEADSCALE_AUTH_KEY，跳过"
     fi
