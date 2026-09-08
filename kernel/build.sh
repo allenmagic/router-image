@@ -24,7 +24,7 @@
 # ============================================================
 set -euo pipefail
 
-KVER="${KVER:-6.18.48}"
+KVER="${KVER:-6.18.50}"
 JOBS="${JOBS:-$(nproc)}"
 CONFIG_ONLY=0
 [ "${1:-}" = "--config-only" ] && CONFIG_ONLY=1
@@ -37,6 +37,7 @@ CACHE_DIR="${KERNEL_CACHE_DIR:-$SCRIPT_DIR/.cache}"
 # 源码校验和：升级 KVER 时同步更新（值取自 kernel.org 的 sha256sums.asc）
 declare -A SRC_SHA256=(
     [6.18.48]="5ebdadb10a4b5708fc6b1c457764a110bc49f8150cc3502c59b921ead8c6fc8c"
+    [6.18.50]="d2fc041dab4e11d9645e3ba53be058faa52b8ce28a8a97c889bb2cacee170461"
 )
 
 log() { printf '[kernel] %s\n' "$*" >&2; }
