@@ -27,7 +27,10 @@ no_logs_no_support=yes
 #statedir="/var/lib/tailscale"
 
 # Additional options to pass to tailscaled.
-command_args="--config=/etc/tailscale/config.json"
+# 注：--config 已由 init 脚本显式传（base/init/openrc/tailscale），
+# 此处不再设置 command_args——conf.d 不生效会让使用者误以为改这里有用，
+# 双源参数反而容易漂移（2026-09 修复 --config 未生效问题）
+#command_args=""
 
 # User and group to run tailscaled as.
 #

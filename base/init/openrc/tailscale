@@ -22,9 +22,14 @@ start() {
         ewarn "未注入 Tailscale authkey，跳过启动（等待 router-vm-deploy 注入）"
         return 1
     fi
+    # --config 必须显式传：tailscaled 不会自动读默认路径。缺它时
+    # config.json 的全部字段（netfilterMode=off / authKey file: /
+    # acceptRoutes / advertiseRoutes / acceptDNS）静默失效——
+    # nftables 环境建 ts-input 链失败、登录后 Logged out
+    # （见 docs/headscale-login-plan.md §2 根因分析）
     ebegin "Starting tailscaled"
     start-stop-daemon --start --quiet --background --make-pidfile --pidfile "$pidfile" \
-        --exec /usr/sbin/tailscaled
+        --exec /usr/sbin/tailscaled -- --config=/etc/tailscale/config.json
     eend $?
 }
 
