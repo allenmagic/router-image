@@ -1,16 +1,18 @@
 #!/sbin/openrc-run
 # ============================================================
-# sshd-keys —— 在 /run/router-vm/ssh（tmpfs）生成 SSH host key
+# sshd-keys —— 在 /run/router-vm/state/ssh 生成 SSH host key
 #
 # 替代 sshd init 自带的 keygen（其 -A 模式不解析 sshd_config.d 的
 # Include，固定写 /etc/ssh —— ro rootfs 上无法落盘）。
 # HostKey 读取路径由 base/ssh/sshd_config.d/state-hostkeys.conf
-# 指到 /run/router-vm/ssh/。key 每次启动重新生成（guest 无状态架构），
-# deploy 通道用 root/root 密码 + StrictHostKeyChecking=no 连接。
+# 指到 /run/router-vm/state/ssh/。key 按「不存在才生成」：宿主启用
+# stateDisk（mount-state 挂盘）时身份跨重启稳定；无盘时 state 为
+# tmpfs，每次启动更换（易失降级）。deploy 通道用 root/root 密码 +
+# StrictHostKeyChecking=no 连接（state 持久化稳定后可收紧该选项）。
 # ============================================================
 
 name=$RC_SVCNAME
-description="Generate SSH host keys under /run/router-vm/ssh"
+description="Generate SSH host keys under /run/router-vm/state/ssh"
 
 depend() {
     need run-state
@@ -18,11 +20,11 @@ depend() {
 }
 
 start() {
-    ebegin "Ensuring SSH host keys under /run/router-vm/ssh"
+    ebegin "Ensuring SSH host keys under /run/router-vm/state/ssh"
     local _t _rc=0
     for _t in rsa ecdsa ed25519; do
-        if [ ! -f "/run/router-vm/ssh/ssh_host_${_t}_key" ]; then
-            ssh-keygen -q -t "$_t" -N '' -f "/run/router-vm/ssh/ssh_host_${_t}_key" || _rc=1
+        if [ ! -f "/run/router-vm/state/ssh/ssh_host_${_t}_key" ]; then
+            ssh-keygen -q -t "$_t" -N '' -f "/run/router-vm/state/ssh/ssh_host_${_t}_key" || _rc=1
         fi
     done
     eend $_rc

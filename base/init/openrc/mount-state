@@ -1,0 +1,33 @@
+#!/sbin/openrc-run
+# ============================================================
+# mount-state —— 宿主可选持久状态盘挂载
+#
+# 宿主启用 services.router-vm.stateDisk 时，router.nix 给 VM 加第二块
+# --disk（readonly=off）→ guest 的 /dev/vdb（ext4）。本服务把它挂到
+# /run/router-vm/state——该目录只放「持久身份」类状态：
+#   state/tailscale  tailscaled.state（官方实例节点身份）
+#   state/headscale  tailscaled.state（headscale 实例节点身份）
+#   state/ssh        sshd host key + authorized_keys
+#
+# 容错：宿主未启用（无 /dev/vdb）或挂载失败（盘损坏）时跳过——
+# state 保持 /run 下普通目录（tmpfs 易失），依赖方按「文件不存在
+# 即重建」自愈降级（新 host key、新节点注册），VM 不受影响。
+# ============================================================
+
+name=$RC_SVCNAME
+description="Mount optional host state disk (persistent identity)"
+
+depend() {
+    need run-state
+    before sshd-keys sshd tailscale headscale
+}
+
+start() {
+    [ -b /dev/vdb ] || {
+        einfo "无宿主 state 盘（/dev/vdb 不存在），state 保持 tmpfs"
+        return 0
+    }
+    ebegin "Mounting host state disk on /run/router-vm/state"
+    mount -t ext4 -o noatime /dev/vdb /run/router-vm/state
+    eend $?
+}

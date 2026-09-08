@@ -100,6 +100,7 @@ _check_ca_certs() {
     # 迹象（服务没跑，自然不报错），只能在构建期查注册状态
     _check_openrc loopback boot
     _check_openrc bootmisc boot
+    _check_openrc mount-state sysinit
     _check_openrc syslog
     echo "[check] openrc 应用服务:"
     _check_openrc network

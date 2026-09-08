@@ -42,7 +42,10 @@ start() {
         return 1
     fi
     # --config 必须显式传（与官方实例同构；config.json 不会自动读）。
-    # daemon 级参数（state/socket/port/tun）config.json 不承载，仍需 CLI
+    # daemon 级参数（state/socket/port/tun）config.json 不承载，仍需 CLI。
+    # state/socket 都走标准路径 /var/lib/headscale（setup.sh 烙链接 →
+    # state/headscale，宿主 stateDisk 时持久）；socket 是运行时 IPC，
+    # daemon 每次启动 unlink 重建，落盘无害
     ebegin "Starting headscale tailscaled (ts0, UDP 41642)"
     start-stop-daemon --start --quiet --background --make-pidfile --pidfile "$pidfile" \
         --exec /usr/sbin/tailscaled -- \

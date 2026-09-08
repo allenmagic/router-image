@@ -246,7 +246,34 @@ in
       description = ''
         宿主密钥目录（sops-nix 的默认解密落点）。router-vm-deploy 在每次
         VM 启动后从这里读取以下文件注入 guest（缺文件则跳过对应注入）：
-          ssh-public-key / tailscale-auth-key / cloudflared-token
+          ssh-public-key / tailscale-auth-key / headscale-auth-key / cloudflared-token
+      '';
+    };
+
+    stateDisk = lib.mkOption {
+      type = lib.types.nullOr (lib.types.submodule {
+        options.sizeMB = lib.mkOption {
+          type = lib.types.ints.positive;
+          default = 64;
+          description = ''
+            状态盘大小（MB）。内容 = SSH host key + authorized_keys +
+            两个 tailscale 实例的 tailscaled.state（各 ~100K），64M 绰绰有余。
+          '';
+        };
+      });
+      default = null;
+      description = ''
+        持久状态盘（可选）。启用后 guest 的 SSH host key、authorized_keys
+        与两个 tailscale 实例（官方 tailscale0 + headscale ts0）的节点身份
+        落宿主磁盘 /var/lib/router-vm/state.raw（第二块 virtio-blk），VM
+        重启后复用——官方 Tailscale 免重复 approve、节点身份/IP 固定。
+
+        null（默认）= 不启用：全部易失（/run tmpfs），每次重启新 host key、
+        新节点重新注册（auth key 需 reusable + ephemeral）。
+
+        删除 state.raw = 重置 guest 全部持久身份（下轮 boot 重新生成）。
+        注意：持久化的是身份文件，密钥（authkey/cloudflared token）仍只
+        经 deploy 注入 /run，绝不落盘。
       '';
     };
   };
@@ -274,7 +301,7 @@ in
       after = [ "network.target" ];
       wants = [ "network.target" ];
       wantedBy = [ "multi-user.target" ];
-      path = [ pkgs.iproute2 pkgs.coreutils ];
+      path = [ pkgs.iproute2 pkgs.coreutils pkgs.e2fsprogs ];
 
       preStart = ''
         mkdir -p /var/lib/router-vm /run/router-vm
@@ -297,6 +324,17 @@ in
         fi
         rm -f "${rootfsCopy}".tmp.*  # 清理历史中断残留（$$ 已变，不会误删在用的）
 
+        # 持久状态盘（可选，stateDisk != null）：guest 的 SSH host key /
+        # authorized_keys / 两个 tailscale 实例的节点身份落宿主磁盘，
+        # VM 重启后复用（官方 Tailscale 免重复 approve、身份固定）。
+        # 首次创建 + mkfs，此后复用；删除 state.raw = 重置全部身份
+        ${lib.optionalString (cfg.stateDisk != null) ''
+          if [ ! -f /var/lib/router-vm/state.raw ]; then
+            truncate -s ${toString cfg.stateDisk.sizeMB}M /var/lib/router-vm/state.raw
+            mkfs.ext4 -q -F /var/lib/router-vm/state.raw
+          fi
+        ''}
+
         # tap 创建（挂桥由 networkd 负责，见上方 systemd.network）
         for _tap in router-wan router-lan; do
           ip link show "$_tap" >/dev/null 2>&1 || ip tuntap add "$_tap" mode tap
@@ -312,6 +350,10 @@ in
           "--cmdline \"console=ttyS0 root=/dev/vda rootfstype=ext4 ro\""
           # image_type 显式声明：CH v52 起镜像类型自动检测已弃用
           "--disk path=${rootfsCopy},readonly=on,image_type=qcow2"
+          # 持久状态盘（stateDisk 启用时）：guest 侧 /dev/vdb，
+          # mount-state 服务挂到 /run/router-vm/state
+          (lib.optionalString (cfg.stateDisk != null)
+            "--disk path=/var/lib/router-vm/state.raw,readonly=off")
           "--cpus boot=${toString cfg.vcpus},affinity=[0@[${toString cfg.cpu}]]"
           "--memory size=${toString cfg.mem}M"
           (lib.optionalString (cfg.initialBalloonMem > 0)

@@ -512,14 +512,17 @@ _link_state_dir() {
     ln -s "/run/router-vm/$_rel" "$_sys"
     echo "[setup]   $1 -> /run/router-vm/$_rel"
 }
-_link_state_dir /var/lib/tailscale tailscale
-_link_state_dir /var/lib/headscale headscale
-_link_state_dir /etc/cloudflared    cloudflared
+# 持久身份候选：宿主启用 stateDisk 时 mount-state 服务把盘挂到
+# state/，否则它就是 /run 下普通目录 = 易失，与旧行为一致
+_link_state_dir /var/lib/tailscale state/tailscale
+_link_state_dir /var/lib/headscale state/headscale
+_link_state_dir /root/.ssh         state/ssh
+# 易失秘密（deploy 每次注入，绝不持久化）
+_link_state_dir /etc/cloudflared    secrets/cloudflared
 _link_state_dir /var/lib/misc       misc
 _link_state_dir /var/log            log
 _link_state_dir /var/tmp            tmp
 _link_state_dir /tmp                tmp
-_link_state_dir /root/.ssh          ssh
 # /var/run：stage3 里是真实目录，bootmisc 启动时尝试迁移内容并 rm（ro 上
 # 报 EROFS）——构建期烙成符号链接后 bootmisc 检测 -L 直接跳过。
 # 注意 /var/run 指向 /run 本体而非 /run/router-vm：它是系统级运行目录
@@ -542,13 +545,13 @@ mkdir -p "${TARGET_ROOTFS}/srv" "${TARGET_ROOTFS}/var/spool"
 # /etc/tailscale 整体不能链接（config.json 是构建期配置，留在镜像内），
 # 只链接运行期注入的 authkey 文件
 rm -f "${TARGET_ROOTFS}/etc/tailscale/authkey"
-ln -s /run/router-vm/tailscale/authkey "${TARGET_ROOTFS}/etc/tailscale/authkey"
+ln -s /run/router-vm/secrets/tailscale-authkey "${TARGET_ROOTFS}/etc/tailscale/authkey"
 # headscale 第二实例（ts0）同构：config.json 留在镜像内，authkey 链接到 /run
 rm -f "${TARGET_ROOTFS}/etc/headscale/authkey"
-ln -s /run/router-vm/headscale/authkey "${TARGET_ROOTFS}/etc/headscale/authkey"
+ln -s /run/router-vm/secrets/headscale-authkey "${TARGET_ROOTFS}/etc/headscale/authkey"
 # host key 不靠符号链接（ssh-keygen 的临时文件写同目录，ro 上会失败），
 # 而是 base/ssh/sshd_config.d/state-hostkeys.conf 把 HostKey 指到
-# /run/router-vm/ssh/（sshd-keys 服务生成，每次启动更换）
+# /run/router-vm/state/ssh/（sshd-keys 服务生成；stateDisk 持久时身份稳定）
 
 # musl 动态链接器（2026-09 修复）：包审计删除 sys-apps/baselayout 后，
 # 无人建立 merged-usr 的 /lib → /usr/lib 链接，而 musl ebuild 按合并布局

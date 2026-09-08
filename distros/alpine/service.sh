@@ -16,6 +16,8 @@ enable_router_services() {
     _enable_service bootmisc boot
     # 运行时状态目录（sysinit：/run 下目录准备，先于一切 default 级服务）
     _enable_service run-state sysinit
+    # 宿主可选持久状态盘（stateDisk）：/dev/vdb 挂到 state/，先于身份类服务
+    _enable_service mount-state sysinit
     # devpts：交互式 SSH 需要 /dev/pts（精简镜像不自动挂，见 base/init/openrc/devpts）
     _enable_service devpts sysinit
     # host key 在 /run/ssh 生成（依赖 run-state，先于 sshd）

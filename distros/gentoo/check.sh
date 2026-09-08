@@ -115,6 +115,7 @@ check_rootfs() {
     _check_openrc bootmisc boot
     _check_openrc syslog default
     _check_openrc loopback boot
+    _check_openrc mount-state sysinit
 
     echo "[check] openrc 应用服务:"
     _check_openrc sshd default
