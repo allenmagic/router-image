@@ -11,7 +11,6 @@
 
 let
   cfg = config.services.router-vm;
-  assets = cfg._assets;
 
   # 宿主侧 ssh 选项：guest host key 每次启动重新生成（无状态架构），
   # 不能依赖 known_hosts；root/root 密码通道只在 LAN 侧（br-lan）可达。
@@ -130,7 +129,7 @@ in
     # ---- deploy 资产与命令 ----
     # 注入器 tarball（无密钥）与手工部署用的 env 模板（sops 流程下
     # 一般不需要；ROUTER_VM_ENV_FILE 调试/迁移场景用）
-    environment.etc."router-vm/deploy.tar.gz".source = assets.deployPkg;
+    environment.etc."router-vm/deploy.tar.gz".source = cfg._assets.deployPkg;
     environment.etc."router-vm/env.example".text =
       builtins.readFile ../deploy-assets/env.example;
 

@@ -17,10 +17,10 @@ in
     type = lib.types.attrs;
     internal = true;
     readOnly = true;
-    default = { };
     description = ''
       内部：release 资产声明与派生（fetchurl 结果、内容哈希路径、deploy 包）。
-      由本文件定义，vm-service.nix 与 deploy.nix 读取。
+      由本文件定义（仅 enable 时，见下方 mkIf），vm-service.nix 与
+      deploy.nix 在各自的 mkIf 块内读取。
     '';
   };
 

@@ -9,7 +9,6 @@
 
 let
   cfg = config.services.router-vm;
-  assets = cfg._assets;
 in
 {
   config = lib.mkIf cfg.enable {
@@ -45,18 +44,18 @@ in
         # 直写最终路径时拷贝中断（磁盘满/系统崩溃）会留下损坏副本，且
         # [ ! -f ] 从此永远跳过重拷，VM 用坏镜像起不来 + Restart=on-failure
         # 无限循环、无自愈路径
-        if [ ! -f "${assets.rootfsCopy}" ]; then
-          _tmp="${assets.rootfsCopy}.tmp.$$"
-          install -m 0644 "${assets.rootfsImage}" "$_tmp"
+        if [ ! -f "${cfg._assets.rootfsCopy}" ]; then
+          _tmp="${cfg._assets.rootfsCopy}.tmp.$$"
+          install -m 0644 "${cfg._assets.rootfsImage}" "$_tmp"
           # 完整性：字节数与原镜像一致才算拷完（qcow2 无内嵌校验和；
           # 同主机拷贝，size 校验已能拦下磁盘满/中断等绝大多数场景）
-          if [ "$(stat -c %s "$_tmp")" != "$(stat -c %s "${assets.rootfsImage}")" ]; then
+          if [ "$(stat -c %s "$_tmp")" != "$(stat -c %s "${cfg._assets.rootfsImage}")" ]; then
             rm -f "$_tmp"
             exit 1
           fi
-          mv "$_tmp" "${assets.rootfsCopy}"
+          mv "$_tmp" "${cfg._assets.rootfsCopy}"
         fi
-        rm -f "${assets.rootfsCopy}".tmp.*  # 清理历史中断残留（$$ 已变，不会误删在用的）
+        rm -f "${cfg._assets.rootfsCopy}".tmp.*  # 清理历史中断残留（$$ 已变，不会误删在用的）
 
         # 持久状态盘（可选，stateDisk != null）：guest 的 SSH host key /
         # authorized_keys / 两个 tailscale 实例的节点身份落宿主磁盘，
@@ -80,10 +79,10 @@ in
         Type = "simple";
         ExecStart = lib.concatStringsSep " " [
           "${pkgs.cloud-hypervisor}/bin/cloud-hypervisor"
-          "--kernel ${assets.kernelImage}"
+          "--kernel ${cfg._assets.kernelImage}"
           "--cmdline \"console=ttyS0 root=/dev/vda rootfstype=ext4 ro\""
           # image_type 显式声明：CH v52 起镜像类型自动检测已弃用
-          "--disk path=${assets.rootfsCopy},readonly=on,image_type=qcow2"
+          "--disk path=${cfg._assets.rootfsCopy},readonly=on,image_type=qcow2"
           # 持久状态盘（stateDisk 启用时）：guest 侧 /dev/vdb，
           # mount-state 服务挂到 /run/router-vm/state
           (lib.optionalString (cfg.stateDisk != null)
